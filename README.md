@@ -101,37 +101,25 @@ No requirements.
 
 | Name | Version |
 |------|---------|
-| <a name="provider_cosign"></a> [cosign](#provider\_cosign) | n/a |
 | <a name="provider_google"></a> [google](#provider\_google) | n/a |
-| <a name="provider_ko"></a> [ko](#provider\_ko) | n/a |
 | <a name="provider_random"></a> [random](#provider\_random) | n/a |
 
 ## Modules
 
-No modules.
+| Name | Source | Version |
+|------|--------|---------|
+| <a name="module_gclb"></a> [gclb](#module\_gclb) | chainguard-dev/common/infra//modules/serverless-gclb | 0.3.2 |
+| <a name="module_this"></a> [this](#module\_this) | chainguard-dev/common/infra//modules/regional-go-service | 0.3.2 |
 
 ## Resources
 
 | Name | Type |
 |------|------|
-| [cosign_sign.image](https://registry.terraform.io/providers/chainguard-dev/cosign/latest/docs/resources/sign) | resource |
-| [google_cloud_run_service.probers](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_service) | resource |
-| [google_cloud_run_service_iam_policy.noauths](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_service_iam_policy) | resource |
-| [google_compute_backend_service.probers](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_backend_service) | resource |
-| [google_compute_global_address.static_ip](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_global_address) | resource |
-| [google_compute_global_forwarding_rule.forwarding_rule](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_global_forwarding_rule) | resource |
-| [google_compute_managed_ssl_certificate.prober_cert](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_managed_ssl_certificate) | resource |
-| [google_compute_region_network_endpoint_group.neg](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_region_network_endpoint_group) | resource |
-| [google_compute_target_https_proxy.prober](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_target_https_proxy) | resource |
-| [google_compute_url_map.probers](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_url_map) | resource |
-| [google_dns_record_set.prober_dns](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/dns_record_set) | resource |
 | [google_monitoring_alert_policy.uptime_alert](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy) | resource |
 | [google_monitoring_uptime_check_config.global_uptime_check](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_uptime_check_config) | resource |
 | [google_monitoring_uptime_check_config.regional_uptime_check](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_uptime_check_config) | resource |
-| [ko_build.image](https://registry.terraform.io/providers/ko-build/ko/latest/docs/resources/build) | resource |
 | [random_password.secret](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
-| [cosign_verify.base-image](https://registry.terraform.io/providers/chainguard-dev/cosign/latest/docs/data-sources/verify) | data source |
-| [google_iam_policy.noauth](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/iam_policy) | data source |
+| [google_cloud_run_v2_service.this](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/cloud_run_v2_service) | data source |
 
 ## Inputs
 
@@ -141,16 +129,16 @@ No modules.
 | <a name="input_cpu"></a> [cpu](#input\_cpu) | The CPU limit for the prober. | `string` | `"1000m"` | no |
 | <a name="input_dns_zone"></a> [dns\_zone](#input\_dns\_zone) | The managed DNS zone in which to create prober record sets (required for multiple locations). | `string` | `""` | no |
 | <a name="input_domain"></a> [domain](#input\_domain) | The domain of the environment to probe (required for multiple locations). | `string` | `""` | no |
+| <a name="input_egress"></a> [egress](#input\_egress) | The level of egress the prober requires. | `string` | `"ALL_TRAFFIC"` | no |
 | <a name="input_enable_alert"></a> [enable\_alert](#input\_enable\_alert) | If true, alert on failures. Outputs will return the alert ID for notification and dashboards. | `bool` | `false` | no |
 | <a name="input_env"></a> [env](#input\_env) | A map of custom environment variables (e.g. key=value) | `map` | `{}` | no |
 | <a name="input_importpath"></a> [importpath](#input\_importpath) | The import path that contains the prober application. | `string` | n/a | yes |
-| <a name="input_locations"></a> [locations](#input\_locations) | Where to run the Cloud Run services. | `list(string)` | <pre>[<br>  "us-central1"<br>]</pre> | no |
 | <a name="input_memory"></a> [memory](#input\_memory) | The memory limit for the prober. | `string` | `"512Mi"` | no |
 | <a name="input_name"></a> [name](#input\_name) | Name to prefix to created resources. | `string` | n/a | yes |
 | <a name="input_notification_channels"></a> [notification\_channels](#input\_notification\_channels) | A list of notification channels to send alerts to. | `list(string)` | `[]` | no |
 | <a name="input_period"></a> [period](#input\_period) | The period for the prober in seconds. | `string` | `"300s"` | no |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | The project that will host the prober. | `string` | n/a | yes |
-| <a name="input_repository"></a> [repository](#input\_repository) | Container repository to publish images to. | `string` | `""` | no |
+| <a name="input_regions"></a> [regions](#input\_regions) | A map from region names to a network and subnetwork.  A prober service will be created in each region. | <pre>map(object({<br>    network = string<br>    subnet  = string<br>  }))</pre> | n/a | yes |
 | <a name="input_service_account"></a> [service\_account](#input\_service\_account) | The email address of the service account to run the service as. | `string` | n/a | yes |
 | <a name="input_timeout"></a> [timeout](#input\_timeout) | The timeout for the prober in seconds. | `string` | `"60s"` | no |
 | <a name="input_working_dir"></a> [working\_dir](#input\_working\_dir) | The working directory that contains the importpath. | `string` | n/a | yes |

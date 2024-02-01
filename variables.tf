@@ -13,12 +13,6 @@ variable "project_id" {
   description = "The project that will host the prober."
 }
 
-variable "repository" {
-  type        = string
-  default     = ""
-  description = "Container repository to publish images to."
-}
-
 variable "service_account" {
   type        = string
   description = "The email address of the service account to run the service as."
@@ -34,10 +28,18 @@ variable "working_dir" {
   description = "The working directory that contains the importpath."
 }
 
-variable "locations" {
-  type        = list(string)
-  default     = ["us-central1"]
-  description = "Where to run the Cloud Run services."
+variable "egress" {
+  type        = string
+  description = "The level of egress the prober requires."
+  default     = "ALL_TRAFFIC"
+}
+
+variable "regions" {
+  description = "A map from region names to a network and subnetwork.  A prober service will be created in each region."
+  type = map(object({
+    network = string
+    subnet  = string
+  }))
 }
 
 variable "dns_zone" {

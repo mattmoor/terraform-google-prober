@@ -3,59 +3,6 @@ Copyright 2022 Chainguard, Inc.
 SPDX-License-Identifier: Apache-2.0
 */
 
-terraform {
-  required_providers {
-    cosign = { source = "chainguard-dev/cosign" }
-    ko     = { source = "ko-build/ko" }
-    google = { source = "hashicorp/google" }
-  }
-}
-
-locals {
-  repo = var.repository != "" ? var.repository : "gcr.io/${var.project_id}/${var.name}"
-}
-
-data "cosign_verify" "base-image" {
-  image = "cgr.dev/chainguard/static:latest-glibc"
-
-  policy = jsonencode({
-    apiVersion = "policy.sigstore.dev/v1beta1"
-    kind       = "ClusterImagePolicy"
-    metadata = {
-      name = "chainguard-images-are-signed"
-    }
-    spec = {
-      images = [{
-        glob = "cgr.dev/**"
-      }]
-      authorities = [{
-        keyless = {
-          url = "https://fulcio.sigstore.dev"
-          identities = [{
-            issuer  = "https://token.actions.githubusercontent.com"
-            subject = "https://github.com/chainguard-images/images/.github/workflows/release.yaml@refs/heads/main"
-          }]
-        }
-        ctlog = {
-          url = "https://rekor.sigstore.dev"
-        }
-      }]
-    }
-  })
-}
-
-// Build the prober into an image we can run on Cloud Run.
-resource "ko_build" "image" {
-  repo        = local.repo
-  base_image  = data.cosign_verify.base-image.verified_ref
-  importpath  = var.importpath
-  working_dir = var.working_dir
-}
-
-resource "cosign_sign" "image" {
-  image = ko_build.image.image_ref
-}
-
 // Create a shared secret to have the uptime check pass to the
 // Cloud Run app as an "Authorization" header to keep ~anyone
 // from being able to use our prober endpoints to indirectly
@@ -66,68 +13,60 @@ resource "random_password" "secret" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
-// Spin up a Cloud Run service to perform our custom prober logic.
-resource "google_cloud_run_service" "probers" {
-  for_each = toset(var.locations)
+locals {
+  service_name = "prb-${substr(var.name, 0, 45)}" // use a common prefix so that they group together.
+}
 
-  project = var.project_id
-  # Cloud Run Service accounts can be 49 characters long, so truncate var.name to 45 chars.
-  name     = "${substr(var.name, 0, 45)}-prb"
-  location = each.key
+module "this" {
+  source  = "chainguard-dev/common/infra//modules/regional-go-service"
+  version = "0.3.2"
 
-  template {
-    spec {
-      service_account_name = var.service_account
-      containers {
-        image = cosign_sign.image.signed_ref
+  project_id = var.project_id
+  name       = local.service_name
+  regions    = var.regions
 
+  // If we're using GCLB then disallow external traffic,
+  // otherwise allow the prober URI to be used directly.
+  ingress = local.use_gclb ? "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER" : "INGRESS_TRAFFIC_ALL"
+
+  // Different probers have different egress requirements.
+  egress = var.egress
+
+  service_account = var.service_account
+  containers = {
+    "prober" = {
+      source = {
+        working_dir = var.working_dir
+        importpath  = var.importpath
+      }
+      ports = [{ container_port = 8080 }]
+      env = concat([{
         // This is a shared secret with the uptime check, which must be
         // passed in an Authorization header for the probe to do work.
-        env {
-          name  = "AUTHORIZATION"
-          value = random_password.secret.result
+        name  = "AUTHORIZATION"
+        value = random_password.secret.result
+      }], [for k, v in var.env : { name = k, value = v }])
+      resources = {
+        limits = {
+          cpu    = var.cpu
+          memory = var.memory
         }
-
-        dynamic "env" {
-          for_each = var.env
-          content {
-            name  = env.key
-            value = env.value
-          }
-        }
-
-        resources {
-          limits = {
-            cpu    = var.cpu
-            memory = var.memory
-          }
-          requests = {
-            cpu    = var.cpu
-            memory = var.memory
-          }
+        requests = {
+          cpu    = var.cpu
+          memory = var.memory
         }
       }
     }
   }
 }
 
-data "google_iam_policy" "noauth" {
-  binding {
-    role = "roles/run.invoker"
-    members = [
-      "allUsers",
-    ]
-  }
-}
-
-resource "google_cloud_run_service_iam_policy" "noauths" {
-  for_each = toset(var.locations)
+data "google_cloud_run_v2_service" "this" {
+  count      = local.use_gclb ? 0 : 1
+  depends_on = [module.this]
 
   project  = var.project_id
-  location = each.key
-  service  = google_cloud_run_service.probers[each.key].name
-
-  policy_data = data.google_iam_policy.noauth.policy_data
+  location = keys(var.regions)[0]
+  name     = local.service_name
 }
 
 // This is the uptime check, which will send traffic to the Cloud Run
@@ -156,7 +95,7 @@ resource "google_monitoring_uptime_check_config" "regional_uptime_check" {
   monitored_resource {
     labels = {
       // Strip the scheme and path off of the Cloud Run URL.
-      host       = split("/", google_cloud_run_service.probers[var.locations[0]].status[0].url)[2]
+      host       = split("/", data.google_cloud_run_v2_service.this[0].uri)[2]
       project_id = var.project_id
     }
 
